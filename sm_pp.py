@@ -48,19 +48,7 @@ def stdout(df):
     df2=df1[df>df.mean()-3*df.std()]
     df3=df2.dropna()
     return df3    
- 
-def stepdet(dm):
-    """ 
-    modified from:
-    https://stackoverflow.com/questions/48000663/step-detection-in-one-dimensional-data
-    """
-    dmn=dm.copy()
-    dmn-=np.average(dmn)
-    step = np.hstack((np.ones(len(dmn)), -1*np.ones(len(dmn))))
-    steploc = np.convolve(dmn, step, mode='valid')
-    step_indx = np.argmax(steploc)
-    
-    return step_indx, steploc
+
 
    
 #%%
@@ -144,7 +132,6 @@ for st in range(10):
     if len(dfall05['mean'].dropna())<18:
         count+=1
          
-    si, sc=stepdet(dfall05['meanf'].values)
     
     if st in lstep:
         try:
@@ -156,8 +143,6 @@ for st in range(10):
     plt.figure()
     plt.plot(dfall05['mean'],'.-', color="chocolate", lw=0.4)
     plt.plot(dfall05['meanf'],'.-', color="blue", lw=0.4)
-    plt.plot(dfall05['meanf'].index[si],dfall05['meanf'].values[si],'.-', color="red", lw=0.4)
-    
     
     
 
