@@ -19,6 +19,35 @@ def ymstrtodate(dfile):
     dateso = [dt.datetime.strptime(da, '%m-%Y').date() for da in dates]
     
     return dateso
+
+def plateu(df, p, depth,wd=3, th=0.01):
+    dfv, dfd=[], []
+    for i in range(len(df)):
+        if i <= wd:
+            sec=df.values[i:i+wd*2]
+        elif i>=len(df)-wd:
+            sec=df.values[i-wd*2:i]
+        else:
+            sec=df.values[i-wd:i+wd]
+        y1=abs(sec[0]-sec[wd])
+        y2=abs(sec[wd]-sec[-1])
+        y3=abs(sec[-1]-sec[0])
+        dym=np.mean([y1,y2,y3])
+        if dym> th:
+            dfv.append(df.values[i][0])
+            dfd.append(df.index[i])
+            #print(dym)
+        
+        d = {'pstat_'+str(p)+'_'+str(int(depth*100)): dfv}
+        dff=pd.DataFrame(data=d,  index= dfd) 
+        
+    return dff
+
+def stdout(df):
+    df1=df[df<df.mean()+3*df.std()]
+    df2=df1[df>df.mean()-3*df.std()]
+    df3=df2.dropna()
+    return df3    
     
 #%%
 
@@ -38,13 +67,15 @@ sodeptop=sodepth['ismn_depth_sta']
 sodepbot=sodepth['ismn_depth_end']
 
 #%%
-#Procedure to choose the depth
+ 
 c=1
-n=10
-stv, depstat,datesstat =[], [], []
-fig, ax =plt.subplots(10,1, figsize=(13,10), sharex=True) 
+n=0
+stv, depstat, depstat05,datesstat, datesstat05 =[], [], [] ,[] ,[]
+dfsall=[]
+#fig, ax =plt.subplots(10,1, figsize=(13,10), sharex=True) 
 #for st in range(len(sobs)):
-for st in range(10,20):
+count=0
+for st in range(20):
     stat=sobs[st,:]
     dstat=sdates[st,:] # read the dates
     scid= sid[st,:]  # read calibration id
@@ -52,11 +83,9 @@ for st in range(10,20):
     #Probe depths
     stop=sodeptop[st,:]
     sbot=sodepbot[st,:]
-    
-    
-    #for p in range(len(stat)):#soil moisture prompt
-    vmind, vmaxd= [],[]
 
+    
+    dfs, dfs05=[], []
     for p in range(len(stat)):
         pstat=np.hstack(stat[p])
         if pstat.size == 0:
@@ -64,32 +93,48 @@ for st in range(10,20):
         dpstat=ymstrtodate(dstat[p])
         
         depthprob=sbot[p]
-        line3=None
-        if depthprob <0.5:
-            color='#22876E'
-            label='<0.5'
-            line1,=ax[st-n].plot(dpstat,pstat,lw=1,color=color, label=label)
-        elif depthprob <1:
-            color='#D4505F'
-            label='0.5-1.0'
-            line2,=ax[st-n].plot(dpstat,pstat,lw=1,alpha=0.8,color=color, label=label)
-        else:
-            color='#7F64E3'
-            label='>1.0'
-            line3,=ax[st-n].plot(dpstat,pstat,lw=1,alpha=0.5,color=color, label=label)
+        d = {'pstat_'+str(p)+'_'+str(int(depthprob*100)): pstat}
+        df1=pd.DataFrame(data=d,  index= dpstat) 
+        df2=df1.dropna()
+        df3=df2[(df2<1)&(df2>0)]
         
-        if line3:
-            ax[st-n].legend([line1,line2,line3],['<0.5m','0.5-1.0m','>1.0m'], 
-                          loc='upper right', fontsize='x-small')
-        else:
-            ax[st-n].legend([line1,line2],['<0.5m','0.5-1.0m'],
-                          loc='upper right', fontsize='x-small')
-        ax[st-n].grid(linewidth=.5, alpha=0.5)
+        df4=plateu(df3, p=p, depth= depthprob, wd=3,th=abs(df3.diff()).mean()[0])
         
-    fig.text(0.5, .07,"Dates", ha='center')  
-    
-    fig.text(0.08, 0.5, 'Soil moisture observations', va='center', rotation='vertical') 
+        df5=stdout(df4)
+        
+        dfs.append(df5)
 
+        if depthprob <0.5:
+            dfs05.append(df5)
+        elif not dfs05 and depthprob <1:
+            dfs05.append(df5)
+        else:
+            dfs05.append(df5)
+        
+    dfall=reduce(lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how='outer'), dfs)  
+    dfall05=reduce(lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how='outer'), dfs05) 
+        
+    dfall['mean']= dfall.mean(axis=1) 
+    dfall05['mean']= dfall05.mean(axis=1)
+    
+    dfall05['meanf']=stdout(dfall05['mean'])
+    
+    if len(dfall05['mean'].dropna())<18:
+        count+=1
+         
+    df6=stdout(df5)
+    
+    plt.figure()
+    plt.plot(dfall05['mean'],'.-', color="chocolate", lw=0.4)
+    plt.plot(dfall05['meanf'],'.-', color="blue", lw=0.4)
+    
+    
+    
+    # dfsall.append(dfall)
+    # depstat.append(dfall['mean'].values)
+    # depstat05.append(dfall05['mean'].values)
+    # datesstat.append(np.array(dfall.index))
+    # datesstat05.append(np.array(dfall05.index))
 
 #%%      
   
@@ -165,47 +210,5 @@ for st in range(len(sobs)):
 path= r"J:\NUTZER\GomezOspina.M\AH\input_data\code_fluxnetv2/"
 np.save(path+'dfsall', np.array(dfsall,dtype=object))
 
-#%%
-
-
-# fig, ax =plt.subplots(2,2, figsize=(15,9), gridspec_kw={'width_ratios': [3, 1]}) 
-# c=1
-# n=0
-# for st in range(2):
-#     stat=sobs[st,:]
-#     dstat=sdates[st,:] # read the dates
-     
-#     dpstatini=ymstrtodate(dstat[0])
-#     pstatini=np.hstack(stat[0])
-#     corrv=[]
-    
-#     for p in range(len(stat)):#soil moisture prompt
-#    # for p in range(3):
-#         pstat=np.hstack(stat[p])
-#         if pstat.size == 0:
-#             break
-#         dpstat=ymstrtodate(dstat[p])
-        
-#         di=list(set.intersection(*map(set,[dpstatini,dpstat])))
-#         di.sort()
-#         print(len(di))
-#         if len(di)==0:
-#             break
-#         pstati=pstat[np.in1d(dpstat,di)]
-#         pstatinii=pstatini[np.in1d(dpstatini,di)]
-        
-#         corrv.append(np.corrcoef(pstati,pstatinii )[0][1])
-        
-#         ax[st-n,0].plot(dpstatini,pstatini, 'k',lw=1.5)
-#         ax[st-n,0].plot(di,pstati)
-#     ax[st-n,0].grid(alpha=0.2)
-#     ax[st-n,0].set_ylabel('Soil moisture')
-    
-#     sns.histplot(data=corrv,kde=True,binwidth=0.1, ax=ax[st-n,1])
-#     ax[st-n,1].set_ylabel(' ')
-#     ax[st-n,1].set_xlim([0,1])
-    
-
-# plt.subplots_adjust(hspace=0.3,top=0.97, bottom=0.05, left=0.05)  
 
 
