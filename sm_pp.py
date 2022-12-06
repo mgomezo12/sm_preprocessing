@@ -48,7 +48,21 @@ def stdout(df):
     df2=df1[df>df.mean()-3*df.std()]
     df3=df2.dropna()
     return df3    
+ 
+def stepdet(dm):
+    """ 
+    modified from:
+    https://stackoverflow.com/questions/48000663/step-detection-in-one-dimensional-data
+    """
+    dmn=dm.copy()
+    dmn-=np.average(dmn)
+    step = np.hstack((np.ones(len(dmn)), -1*np.ones(len(dmn))))
+    steploc = np.convolve(dmn, step, mode='valid')
+    step_indx = np.argmax(steploc)
     
+    return step_indx, steploc
+
+   
 #%%
 
 #Folder of input data
@@ -72,10 +86,14 @@ c=1
 n=0
 stv, depstat, depstat05,datesstat, datesstat05 =[], [], [] ,[] ,[]
 dfsall=[]
+#lstep=[1,2,14,22,263,348,454,461,466,490]
+lstep=[1,14,22,348,461,466,490]
+lstepbl={1:2015,22:2012,461:2014,490:2016}
+lstepab={14:2016, 348:1996, 466:2016}
 #fig, ax =plt.subplots(10,1, figsize=(13,10), sharex=True) 
 #for st in range(len(sobs)):
 count=0
-for st in range(20):
+for st in range(10):
     stat=sobs[st,:]
     dstat=sdates[st,:] # read the dates
     scid= sid[st,:]  # read calibration id
@@ -111,8 +129,12 @@ for st in range(20):
         else:
             dfs05.append(df5)
         
-    dfall=reduce(lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how='outer'), dfs)  
-    dfall05=reduce(lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how='outer'), dfs05) 
+    dfall=reduce(lambda left, right: pd.merge(left, right, left_index=True,
+                                              right_index=True, how='outer'), 
+                                                 dfs)  
+    dfall05=reduce(lambda left, right: pd.merge(left, right,left_index=True, 
+                                                right_index=True, how='outer'),
+                                                 dfs05) 
         
     dfall['mean']= dfall.mean(axis=1) 
     dfall05['mean']= dfall05.mean(axis=1)
@@ -122,13 +144,23 @@ for st in range(20):
     if len(dfall05['mean'].dropna())<18:
         count+=1
          
-    df6=stdout(df5)
+    si, sc=stepdet(dfall05['meanf'].values)
     
+    if st in lstep:
+        try:
+            dfall05['meanf']=dfall05['meanf'][dfall05['meanf'].index>dt.datetime(lstepab[st],1,1).date()]
+        except:
+            dfall05['meanf']=dfall05['meanf'][dfall05['meanf'].index<dt.datetime(lstepbl[st],1,1).date()]
+        
+        
     plt.figure()
     plt.plot(dfall05['mean'],'.-', color="chocolate", lw=0.4)
     plt.plot(dfall05['meanf'],'.-', color="blue", lw=0.4)
+    plt.plot(dfall05['meanf'].index[si],dfall05['meanf'].values[si],'.-', color="red", lw=0.4)
     
     
+    
+
     
     # dfsall.append(dfall)
     # depstat.append(dfall['mean'].values)
@@ -136,78 +168,7 @@ for st in range(20):
     # datesstat.append(np.array(dfall.index))
     # datesstat05.append(np.array(dfall05.index))
 
-#%%      
-  
-c=1
-n=0
-stv, depstat, depstat05,datesstat, datesstat05 =[], [], [] ,[] ,[]
-dfsall=[]
-#fig, ax =plt.subplots(10,1, figsize=(13,10), sharex=True) 
-for st in range(len(sobs)):
-#for st in range(2):
-    stat=sobs[st,:]
-    dstat=sdates[st,:] # read the dates
-    scid= sid[st,:]  # read calibration id
-    
-    #Probe depths
-    stop=sodeptop[st,:]
-    sbot=sodepbot[st,:]
-    
-    
-    ssobs[st]
-    dssobs[st]
-    
-    dfs, dfs05=[], []
-    for p in range(len(stat)):
-        pstat=np.hstack(stat[p])
-        if pstat.size == 0:
-            continue  
-        dpstat=ymstrtodate(dstat[p])
-        
-        depthprob=sbot[p]
-        d = {'pstat_'+str(p)+'_'+str(depthprob)[2:]: pstat}
-        dfs.append( pd.DataFrame(data=d,  index= dpstat) )
-        
-        if depthprob <0.5:
-            dfs05.append(pd.DataFrame(data=d,  index= dpstat) )
-        elif not dfs05 and depthprob <1:
-            dfs05.append(pd.DataFrame(data=d,  index= dpstat) )
-        else:
-            dfs05.append(pd.DataFrame(data=d,  index= dpstat) )
-         
-        
-
-        #ax[st-n].plot(dpstat, pstat, alpha=0.8, color='lightblue')
-        
-    dfall=reduce(lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how='outer'), dfs)  
-    dfall05=reduce(lambda left, right: pd.merge(left, right, left_index=True, right_index=True, how='outer'), dfs05) 
-        
-    dfall['mean']= dfall.mean(axis=1) 
-    dfall05['mean']= dfall05.mean(axis=1)
-    
-    dsel = {'sel_pstat': ssobs[st]}
-    dfall=dfall.join(pd.DataFrame(data=dsel,  index= dssobs[st]))
-    
-    dfsall.append(dfall)
-    depstat.append(dfall['mean'].values)
-    depstat05.append(dfall05['mean'].values)
-    datesstat.append(np.array(dfall.index))
-    datesstat05.append(np.array(dfall05.index))
-    
-    
-    # ax[st-n].plot(dfall.index, dfall['mean'], color='darkblue', label='Mean') 
-    # ax[st-n].plot(dfall05.index, dfall05['mean'], color='#D4505F', label='Mean <0.5m') 
-    # ax[st-n].plot(dfall.index, dfall['sel_pstat'], color='#E0A458', label='Selected')
-    # ax[st-n].grid(linewidth=.5, alpha=0.5)
-    # ax[0].legend(loc='upper right', fontsize='x-small')
-        
-    # fig.text(0.5, .07,"Dates", ha='center')  
-    # fig.text(0.08, 0.5, 'Soil moisture observations', va='center', rotation='vertical') 
-    
-
 #%%
-#Save 
-path= r"J:\NUTZER\GomezOspina.M\AH\input_data\code_fluxnetv2/"
 np.save(path+'dfsall', np.array(dfsall,dtype=object))
 
 
