@@ -1,5 +1,4 @@
 import numpy as np
-import h5py
 import matplotlib.pyplot as plt
 import datetime as dt
 import scipy.io as sio
@@ -48,8 +47,6 @@ def stdout(df):
     df2=df1[df>df.mean()-3*df.std()]
     df3=df2.dropna()
     return df3    
-
-
    
 #%%
 
@@ -72,16 +69,12 @@ sodepbot=sodepth['ismn_depth_end']
  
 c=1
 n=0
-stv, depstat, depstat05,datesstat, datesstat05 =[], [], [] ,[] ,[]
 dfsall=[]
-#lstep=[1,2,14,22,263,348,454,461,466,490]
 lstep=[1,14,22,348,461,466,490]
 lstepbl={1:2015,22:2012,461:2014,490:2016}
 lstepab={14:2016, 348:1996, 466:2016}
-#fig, ax =plt.subplots(10,1, figsize=(13,10), sharex=True) 
-#for st in range(len(sobs)):
 count=0
-for st in range(10):
+for st in range(len(sobs)):
     stat=sobs[st,:]
     dstat=sdates[st,:] # read the dates
     scid= sid[st,:]  # read calibration id
@@ -140,21 +133,14 @@ for st in range(10):
             dfall05['meanf']=dfall05['meanf'][dfall05['meanf'].index<dt.datetime(lstepbl[st],1,1).date()]
         
         
-    plt.figure()
-    plt.plot(dfall05['mean'],'.-', color="chocolate", lw=0.4)
-    plt.plot(dfall05['meanf'],'.-', color="blue", lw=0.4)
+    # plt.figure()
+    # plt.plot(dfall05['mean'],'.-', color="chocolate", lw=0.4)
+    # plt.plot(dfall05['meanf'],'.-', color="blue", lw=0.4)
     
     
+    dfsall.append(dfall05)
 
-    
-    # dfsall.append(dfall)
-    # depstat.append(dfall['mean'].values)
-    # depstat05.append(dfall05['mean'].values)
-    # datesstat.append(np.array(dfall.index))
-    # datesstat05.append(np.array(dfall05.index))
-
-#%%
-np.save(path+'dfsall', np.array(dfsall,dtype=object))
+np.save('dfsall', np.array(dfsall,dtype=object))
 
 
 
